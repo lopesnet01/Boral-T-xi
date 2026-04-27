@@ -56,7 +56,7 @@
         </header>
         
         <div class="info-box">
-            <p><strong>Ponto de Partida:</strong> <span id="displayOrigem">Cachoeira</span></p>
+            <p><strong>Ponto de Partida:</strong> <span id="displayOrigem">Buscando endereço...</span></p>
             <p><strong>Valor da Corrida:</strong> <span id="displayValor">R$ 30,00</span></p>
         </div>
 
@@ -101,7 +101,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        // --- Lógica do Mapa ---
         let map;
         let marcadorOrigem;
         let marcadorDestino;
@@ -114,7 +113,6 @@
                     attribution: '© OpenStreetMap'
                 }).addTo(map);
 
-                // ADICIONA BARRA DE BUSCA
                 L.Control.geocoder({
                     defaultMarkGeocode: true,
                     placeholder: "Buscar local..."
@@ -127,7 +125,6 @@
                 })
                 .addTo(map);
 
-                // Clique para definir destino manualmente
                 map.on('click', function(e) {
                     const lat = e.latlng.lat;
                     const lng = e.latlng.lng;
@@ -149,18 +146,31 @@
                     (position) => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
+                        
                         map.setView([lat, lng], 16);
                         if (marcadorOrigem) map.removeLayer(marcadorOrigem);
                         marcadorOrigem = L.marker([lat, lng]).addTo(map).bindPopup('Sua Localização').openPopup();
-                        document.getElementById('origem').value = "Localização Atual (GPS)";
-                        atualizarInfo();
+                        
+                        // BUSCA O ENDEREÇO REAL DA ORIGEM (CORREÇÃO AQUI)
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                            .then(res => res.json())
+                            .then(data => {
+                                const enderecoCompleto = data.display_name || "Endereço via GPS";
+                                document.getElementById('origem').value = enderecoCompleto;
+                                atualizarInfo(); // Atualiza o topo da tela
+                            })
+                            .catch(() => {
+                                document.getElementById('origem').value = "Localização Atual (GPS)";
+                            });
                     },
-                    (error) => { console.warn("GPS desativado"); }
+                    (error) => { 
+                        console.warn("GPS desativado"); 
+                        document.getElementById('displayOrigem').innerText = "Cachoeira (Padrão)";
+                    }
                 );
             }
         }
 
-        // --- Auth Lógica (Mantida) ---
         let isLogin = true;
         window.toggleMode = () => {
             isLogin = !isLogin;
@@ -199,7 +209,8 @@
 
         window.atualizarInfo = () => {
             var origem = document.getElementById('origem').value;
-            document.getElementById('displayOrigem').innerText = origem || "Cachoeira";
+            // Mostra um resumo ou o endereço completo no topo
+            document.getElementById('displayOrigem').innerText = origem.split(',')[0] || "Cachoeira";
             var dados = document.getElementById('tipoTransporte').value.split('|');
             var valor = dados[1];
             document.getElementById('displayValor').innerText = "R$ " + valor.replace('.', ',');
