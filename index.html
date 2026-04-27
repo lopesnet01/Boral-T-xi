@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BoraLá Táxi</title>
+    <style>
+        :root { --amarelo: #FFD700; --preto: #000000; --branco: #FFFFFF; }
+        html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--branco); color: var(--preto); }
+        .hidden { display: none !important; }
+        .container { min-height: 100vh; display: flex; flex-direction: column; }
+        header { background-color: var(--amarelo); padding: 20px; text-align: center; }
+        h1 { margin: 0; font-size: 1.8rem; text-transform: uppercase; }
+        .form-box { padding: 20px; max-width: 400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        input, select { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-main { background-color: var(--preto); color: var(--amarelo); }
+        .btn-whats { background-color: #25D366; color: white; margin-top: 25px; }
+        .info-box { background: #f4f4f4; padding: 15px; text-align: center; border-bottom: 2px solid var(--amarelo); }
+    </style>
+</head>
+<body>
+
+    <div id="auth-section" class="container">
+        <header><h1>BoraLá Táxi</h1></header>
+        <div class="form-box">
+            <h2 id="form-title">Login</h2>
+            <input type="email" id="email" placeholder="E-mail">
+            <input type="password" id="password" placeholder="Senha">
+            <input type="text" id="nomeCadastro" placeholder="Seu Nome Completo" class="hidden">
+            
+            <button class="btn-main" onclick="handleAuth()">Entrar</button>
+            <p style="text-align:center; margin-top: 20px;">
+                <a href="#" onclick="toggleMode()" id="toggle-text">Criar conta</a>
+            </p>
+        </div>
+    </div>
+
+    <div id="app-section" class="container hidden">
+        <header>
+            <h1>BoraLá Táxi</h1>
+            <button style="background:none; border:none; color:black; font-weight:bold; cursor:pointer;" onclick="logout()">Sair</button>
+        </header>
+        
+        <div class="info-box">
+            <p><strong>Ponto de Partida:</strong> <span id="displayOrigem">Cachoeira</span></p>
+            <p><strong>Valor da Corrida:</strong> <span id="displayValor">R$ 25,00</span></p>
+        </div>
+
+        <div class="form-box">
+            <label>Seu Nome:</label>
+            <input type="text" id="nomeCliente" placeholder="Seu nome">
+            <label>Ponto de Partida:</label>
+            <input type="text" id="origem" placeholder="Sua Rua/Endereço" oninput="atualizarInfo()">
+            <label>Destino:</label>
+            <input type="text" id="destino" placeholder="Para onde você vai?">
+            <label>Proposta de Valor:</label>
+            <select id="valorProposta" onchange="atualizarInfo()">
+                <option value="25.00">R$ 25,00 (Valor Fixo)</option>
+                <option value="22.50">R$ 22,50 (Proposta -10%)</option>
+                <option value="20.00">R$ 20,00 (Proposta -20%)</option>
+            </select>
+            <button class="btn-whats" onclick="enviarWhatsApp()">Pedir BoraLá Táxi</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDmFpfWNzOHeWBap4l_G4yU-Aiw2S5ahGc",
+            authDomain: "basetaxicar-822e2.firebaseapp.com",
+            projectId: "basetaxicar-822e2",
+            storageBucket: "basetaxicar-822e2.firebasestorage.app",
+            messagingSenderId: "848040258238",
+            appId: "1:848040258238:web:c4cafdd11d459a20498cef",
+            measurementId: "G-QX9Q6Y7L16"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        let isLogin = true;
+        window.toggleMode = () => {
+            isLogin = !isLogin;
+            document.getElementById('form-title').innerText = isLogin ? "Login" : "Cadastro";
+            document.getElementById('toggle-text').innerText = isLogin ? "Criar conta" : "Já tenho conta";
+            document.getElementById('nomeCadastro').classList.toggle('hidden', isLogin);
+        };
+
+        window.handleAuth = async () => {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            const nome = document.getElementById('nomeCadastro').value;
+            
+            try {
+                if(isLogin) {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                } else {
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+                    await updateProfile(userCredential.user, { displayName: nome });
+                    // Aviso ao cliente com as credenciais
+                    alert("Conta criada com sucesso!\n\nGuarde seus dados:\nE-mail: " + email + "\nSenha: " + pass);
+                }
+            } catch (e) { alert("Erro: " + e.message); }
+        };
+
+        window.logout = () => signOut(auth);
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('app-section').classList.remove('hidden');
+                // Preencher o nome automaticamente
+                document.getElementById('nomeCliente').value = user.displayName || "";
+            } else {
+                document.getElementById('auth-section').classList.remove('hidden');
+                document.getElementById('app-section').classList.add('hidden');
+            }
+        });
+
+        // --- Lógica do App ---
+        window.atualizarInfo = () => {
+            var origem = document.getElementById('origem').value;
+            document.getElementById('displayOrigem').innerText = origem || "Cachoeira";
+            var valor = document.getElementById('valorProposta').value;
+            document.getElementById('displayValor').innerText = "R$ " + valor.replace('.', ',');
+        };
+
+        window.enviarWhatsApp = () => {
+            var nome = document.getElementById('nomeCliente').value;
+            var origem = document.getElementById('origem').value;
+            var destino = document.getElementById('destino').value;
+            var valor = document.getElementById('valorProposta').value;
+            var telefone = "557798623007";
+            
+            if (nome === "" || origem === "" || destino === "") {
+                alert("Por favor, preencha nome, origem e destino.");
+                return;
+            }
+            var mensagem = "Olá! Meu nome é " + nome + ". Gostaria de um BoraLá Táxi.\n\n📍 Origem: " + origem + "\n🏁 Destino: " + destino + "\n💰 Valor: R$ " + valor.replace('.', ',');
+            window.open("https://wa.me/" + telefone + "?text=" + encodeURIComponent(mensagem), '_blank');
+        };
+    </script>
+</body>
+</html>
