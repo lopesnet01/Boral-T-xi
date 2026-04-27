@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BoraLá Táxi</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
     <style>
         :root { --amarelo: #FFD700; --preto: #000000; --branco: #FFFFFF; }
         html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--branco); color: var(--preto); }
@@ -15,8 +19,17 @@
         input, select { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #ccc; border-radius: 8px; box-sizing: border-box; }
         button { width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
         .btn-main { background-color: var(--preto); color: var(--amarelo); }
-        .btn-whats { background-color: #25D366; color: white; margin-top: 25px; }
+        .btn-whats { background-color: #25D366; color: white; margin-top: 10px; }
         .info-box { background: #f4f4f4; padding: 15px; text-align: center; border-bottom: 2px solid var(--amarelo); }
+        
+        #mapa { 
+            height: 300px; 
+            width: 100%; 
+            border-radius: 8px; 
+            margin-bottom: 15px; 
+            border: 2px solid #ccc;
+            z-index: 1; 
+        }
     </style>
 </head>
 <body>
@@ -48,12 +61,15 @@
         </div>
 
         <div class="form-box">
+            <p style="font-size: 0.8rem; color: #555;">Use a lupa no mapa para buscar um local ou clique no mapa:</p>
+            <div id="mapa"></div>
+
             <label>Seu Nome:</label>
             <input type="text" id="nomeCliente" placeholder="Seu nome">
             <label>Ponto de Partida:</label>
             <input type="text" id="origem" placeholder="Sua Rua/Endereço" oninput="atualizarInfo()">
             <label>Destino:</label>
-            <input type="text" id="destino" placeholder="Para onde você vai?">
+            <input type="text" id="destino" placeholder="Ex: Prefeitura, Rodoviária...">
             
             <label>Tipo de Transporte:</label>
             <select id="tipoTransporte" onchange="atualizarInfo()">
@@ -64,6 +80,9 @@
             <button class="btn-whats" onclick="enviarWhatsApp()">Pedir BoraLá Táxi</button>
         </div>
     </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -82,7 +101,66 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        // --- Auth Lógica ---
+        // --- Lógica do Mapa ---
+        let map;
+        let marcadorOrigem;
+        let marcadorDestino;
+
+        function carregarMapa() {
+            if (!map) {
+                map = L.map('mapa').setView([-10.7242, -43.6283], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap'
+                }).addTo(map);
+
+                // ADICIONA BARRA DE BUSCA
+                L.Control.geocoder({
+                    defaultMarkGeocode: true,
+                    placeholder: "Buscar local..."
+                })
+                .on('markgeocode', function(e) {
+                    var result = e.geocode;
+                    document.getElementById('destino').value = result.name;
+                    if(marcadorDestino) map.removeLayer(marcadorDestino);
+                    marcadorDestino = L.marker(result.center).addTo(map).bindPopup(result.name).openPopup();
+                })
+                .addTo(map);
+
+                // Clique para definir destino manualmente
+                map.on('click', function(e) {
+                    const lat = e.latlng.lat;
+                    const lng = e.latlng.lng;
+                    if(marcadorDestino) map.removeLayer(marcadorDestino);
+                    marcadorDestino = L.marker([lat, lng]).addTo(map).bindPopup("Destino selecionado").openPopup();
+
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            document.getElementById('destino').value = data.display_name || "Local selecionado";
+                        });
+                });
+            }
+
+            setTimeout(() => { map.invalidateSize(); }, 300);
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        map.setView([lat, lng], 16);
+                        if (marcadorOrigem) map.removeLayer(marcadorOrigem);
+                        marcadorOrigem = L.marker([lat, lng]).addTo(map).bindPopup('Sua Localização').openPopup();
+                        document.getElementById('origem').value = "Localização Atual (GPS)";
+                        atualizarInfo();
+                    },
+                    (error) => { console.warn("GPS desativado"); }
+                );
+            }
+        }
+
+        // --- Auth Lógica (Mantida) ---
         let isLogin = true;
         window.toggleMode = () => {
             isLogin = !isLogin;
@@ -100,7 +178,7 @@
                 else {
                     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
                     await updateProfile(userCredential.user, { displayName: nome });
-                    alert("Conta criada!\n\nE-mail: " + email + "\nSenha: " + pass);
+                    alert("Conta criada!");
                 }
             } catch (e) { alert("Erro: " + e.message); }
         };
@@ -112,18 +190,16 @@
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('app-section').classList.remove('hidden');
                 document.getElementById('nomeCliente').value = user.displayName || "";
+                carregarMapa();
             } else {
                 document.getElementById('auth-section').classList.remove('hidden');
                 document.getElementById('app-section').classList.add('hidden');
             }
         });
 
-        // --- Lógica do App ---
         window.atualizarInfo = () => {
             var origem = document.getElementById('origem').value;
             document.getElementById('displayOrigem').innerText = origem || "Cachoeira";
-            
-            // Extrai o valor do select (formato: "Tipo|Valor")
             var dados = document.getElementById('tipoTransporte').value.split('|');
             var valor = dados[1];
             document.getElementById('displayValor').innerText = "R$ " + valor.replace('.', ',');
@@ -133,12 +209,9 @@
             var nome = document.getElementById('nomeCliente').value;
             var origem = document.getElementById('origem').value;
             var destino = document.getElementById('destino').value;
-            
-            // Extrai os dados novamente
             var dados = document.getElementById('tipoTransporte').value.split('|');
             var tipo = dados[0];
             var valor = dados[1];
-            
             var telefone = "557798623007";
             
             if (nome === "" || origem === "" || destino === "") {
