@@ -44,7 +44,7 @@
         
         <div class="info-box">
             <p><strong>Ponto de Partida:</strong> <span id="displayOrigem">Cachoeira</span></p>
-            <p><strong>Valor da Corrida:</strong> <span id="displayValor">R$ 25,00</span></p>
+            <p><strong>Valor da Corrida:</strong> <span id="displayValor">R$ 30,00</span></p>
         </div>
 
         <div class="form-box">
@@ -54,12 +54,13 @@
             <input type="text" id="origem" placeholder="Sua Rua/Endereço" oninput="atualizarInfo()">
             <label>Destino:</label>
             <input type="text" id="destino" placeholder="Para onde você vai?">
-            <label>Proposta de Valor:</label>
-            <select id="valorProposta" onchange="atualizarInfo()">
-                <option value="25.00">R$ 25,00 (Valor Fixo)</option>
-                <option value="22.50">R$ 22,50 (Proposta -10%)</option>
-                <option value="20.00">R$ 20,00 (Proposta -20%)</option>
+            
+            <label>Tipo de Transporte:</label>
+            <select id="tipoTransporte" onchange="atualizarInfo()">
+                <option value="Carro|30.00">Carro (R$ 30,00)</option>
+                <option value="Moto|20.00">Moto (R$ 20,00)</option>
             </select>
+            
             <button class="btn-whats" onclick="enviarWhatsApp()">Pedir BoraLá Táxi</button>
         </div>
     </div>
@@ -81,6 +82,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
+        // --- Auth Lógica ---
         let isLogin = true;
         window.toggleMode = () => {
             isLogin = !isLogin;
@@ -93,15 +95,12 @@
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
             const nome = document.getElementById('nomeCadastro').value;
-            
             try {
-                if(isLogin) {
-                    await signInWithEmailAndPassword(auth, email, pass);
-                } else {
+                if(isLogin) await signInWithEmailAndPassword(auth, email, pass);
+                else {
                     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
                     await updateProfile(userCredential.user, { displayName: nome });
-                    // Aviso ao cliente com as credenciais
-                    alert("Conta criada com sucesso!\n\nGuarde seus dados:\nE-mail: " + email + "\nSenha: " + pass);
+                    alert("Conta criada!\n\nE-mail: " + email + "\nSenha: " + pass);
                 }
             } catch (e) { alert("Erro: " + e.message); }
         };
@@ -112,7 +111,6 @@
             if (user) {
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('app-section').classList.remove('hidden');
-                // Preencher o nome automaticamente
                 document.getElementById('nomeCliente').value = user.displayName || "";
             } else {
                 document.getElementById('auth-section').classList.remove('hidden');
@@ -124,7 +122,10 @@
         window.atualizarInfo = () => {
             var origem = document.getElementById('origem').value;
             document.getElementById('displayOrigem').innerText = origem || "Cachoeira";
-            var valor = document.getElementById('valorProposta').value;
+            
+            // Extrai o valor do select (formato: "Tipo|Valor")
+            var dados = document.getElementById('tipoTransporte').value.split('|');
+            var valor = dados[1];
             document.getElementById('displayValor').innerText = "R$ " + valor.replace('.', ',');
         };
 
@@ -132,14 +133,19 @@
             var nome = document.getElementById('nomeCliente').value;
             var origem = document.getElementById('origem').value;
             var destino = document.getElementById('destino').value;
-            var valor = document.getElementById('valorProposta').value;
+            
+            // Extrai os dados novamente
+            var dados = document.getElementById('tipoTransporte').value.split('|');
+            var tipo = dados[0];
+            var valor = dados[1];
+            
             var telefone = "557798623007";
             
             if (nome === "" || origem === "" || destino === "") {
                 alert("Por favor, preencha nome, origem e destino.");
                 return;
             }
-            var mensagem = "Olá! Meu nome é " + nome + ". Gostaria de um BoraLá Táxi.\n\n📍 Origem: " + origem + "\n🏁 Destino: " + destino + "\n💰 Valor: R$ " + valor.replace('.', ',');
+            var mensagem = "Olá! Meu nome é " + nome + ". Gostaria de um BoraLá Táxi.\n\n📍 Origem: " + origem + "\n🏁 Destino: " + destino + "\n🚗 Veículo: " + tipo + "\n💰 Valor: R$ " + valor.replace('.', ',');
             window.open("https://wa.me/" + telefone + "?text=" + encodeURIComponent(mensagem), '_blank');
         };
     </script>
