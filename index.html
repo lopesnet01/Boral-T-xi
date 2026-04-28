@@ -114,7 +114,7 @@
         </div>
         
         <label>Nome Completo:</label>
-        <input type="text" id="perfilNome" disabled style="background-color: #eee;">
+        <input type="text" id="perfilNome" placeholder="Seu nome">
         
         <label>Telefone (Opcional):</label>
         <input type="tel" id="perfilTelefone" placeholder="(77) 90000-0000">
@@ -162,7 +162,6 @@
         function formatarEnderecoCurto(addressObj) {
             if (!addressObj) return "Endereço selecionado";
             let partes = [];
-            // Pega o Ponto de referência, Rua e Bairro/Cidade
             if (addressObj.amenity) partes.push(addressObj.amenity);
             if (addressObj.road) partes.push(addressObj.road);
             if (addressObj.suburb || addressObj.neighbourhood) partes.push(addressObj.suburb || addressObj.neighbourhood);
@@ -189,7 +188,6 @@
                     marcadorDestino = L.marker(latlng).addTo(map).bindPopup("Destino").openPopup();
                     map.setView(latlng, 16);
                     
-                    // Busca endereço curto
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`)
                         .then(res => res.json())
                         .then(data => {
@@ -276,7 +274,16 @@
             if (user) {
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('app-section').classList.remove('hidden');
-                document.getElementById('perfilNome').value = user.displayName || "Usuário";
+                
+                // Puxa o nome do Firebase
+                document.getElementById('perfilNome').value = user.displayName || "";
+                
+                // Puxa o telefone salvo no aparelho (se houver)
+                const telefoneSalvo = localStorage.getItem('userTelefone');
+                if (telefoneSalvo) {
+                    document.getElementById('perfilTelefone').value = telefoneSalvo;
+                }
+                
                 carregarMapa();
             } else {
                 document.getElementById('auth-section').classList.remove('hidden');
@@ -287,7 +294,27 @@
         // --- FUNÇÕES DE UI E WHATSAPP ---
         window.abrirPerfil = () => document.getElementById('perfil-section').classList.remove('hidden');
         window.fecharPerfil = () => document.getElementById('perfil-section').classList.add('hidden');
-        window.salvarPerfil = () => { alert("Dados salvos com sucesso no seu aparelho!"); fecharPerfil(); };
+        
+        // NOVA LÓGICA DE SALVAR PERFIL (ATUALIZA NO FIREBASE)
+        window.salvarPerfil = async () => {
+            const novoNome = document.getElementById('perfilNome').value;
+            const novoTelefone = document.getElementById('perfilTelefone').value;
+            const user = auth.currentUser;
+            
+            if (user) {
+                try {
+                    // Atualiza o nome oficial no Firebase
+                    await updateProfile(user, { displayName: novoNome });
+                    // Salva o telefone no armazenamento do navegador
+                    localStorage.setItem('userTelefone', novoTelefone);
+                    
+                    alert("Dados salvos com sucesso!");
+                    fecharPerfil();
+                } catch (error) {
+                    alert("Erro ao atualizar o perfil: " + error.message);
+                }
+            }
+        };
         
         window.abrirCompartilhar = () => document.getElementById('share-section').classList.remove('hidden');
         window.fecharCompartilhar = () => document.getElementById('share-section').classList.add('hidden');
@@ -298,7 +325,7 @@
         };
 
         window.enviarWhatsApp = () => {
-            var nome = document.getElementById('perfilNome').value; // Pega direto do perfil logado
+            var nome = document.getElementById('perfilNome').value;
             var origem = document.getElementById('origem').value;
             var destino = document.getElementById('destino').value;
             var pagamento = document.getElementById('formaPagamento').value;
@@ -311,7 +338,6 @@
                 return;
             }
             
-            // Mensagem concisa e direta, estilo Uber/99
             var mensagem = `*Nova Corrida - BoraLá Táxi* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${tipo}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${valor.replace('.', ',')}`;
             
             window.open("https://wa.me/557798623007?text=" + encodeURIComponent(mensagem), '_blank');
