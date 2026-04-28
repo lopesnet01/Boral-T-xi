@@ -9,38 +9,54 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 
     <style>
-        :root { --amarelo: #FFD700; --preto: #000000; --branco: #FFFFFF; }
+        :root { --amarelo: #FFD700; --preto: #000000; --branco: #FFFFFF; --cinza: #f4f4f4; }
         html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--branco); color: var(--preto); }
         .hidden { display: none !important; }
         .container { min-height: 100vh; display: flex; flex-direction: column; }
-        header { background-color: var(--amarelo); padding: 20px; text-align: center; }
-        h1 { margin: 0; font-size: 1.8rem; text-transform: uppercase; }
-        .form-box { padding: 20px; max-width: 400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-        input, select { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        .btn-main { background-color: var(--preto); color: var(--amarelo); }
-        .btn-whats { background-color: #25D366; color: white; margin-top: 10px; }
-        .info-box { background: #f4f4f4; padding: 15px; text-align: center; border-bottom: 2px solid var(--amarelo); }
         
-        #mapa { 
-            height: 300px; 
-            width: 100%; 
-            border-radius: 8px; 
-            margin-bottom: 15px; 
-            border: 2px solid #ccc;
-            z-index: 1; 
-        }
+        /* Cabeçalho com Menu */
+        header { background-color: var(--amarelo); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        h1 { margin: 0; font-size: 1.5rem; text-transform: uppercase; font-weight: 900; }
+        .menu-btn { background: none; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: var(--preto); }
+        
+        .form-box { padding: 20px; max-width: 400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        input, select { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+        button { width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 1rem; }
+        
+        .btn-main { background-color: var(--preto); color: var(--amarelo); }
+        .btn-whats { background-color: #25D366; color: white; margin-top: 10px; font-size: 1.1rem; }
+        .btn-outline { background-color: transparent; border: 2px solid var(--preto); color: var(--preto); }
+        
+        .info-box { background: var(--cinza); padding: 15px; text-align: center; border-bottom: 2px solid var(--amarelo); font-size: 0.9rem; }
+        
+        #mapa { height: 250px; width: 100%; border-radius: 8px; margin-bottom: 10px; border: 2px solid #ccc; z-index: 1; }
+        
+        /* Estilos LGPD e Termos */
+        .lgpd-box { font-size: 0.8rem; color: #555; display: flex; align-items: flex-start; gap: 8px; margin: 10px 0; text-align: left; }
+        .lgpd-box input { width: auto; margin: 2px 0 0 0; }
+        
+        /* Modais (Perfil / Compartilhar) */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--amarelo); padding-bottom: 10px; margin-bottom: 20px; }
+        
+        .qr-container { text-align: center; margin-top: 20px; }
+        .qr-container img { max-width: 200px; border-radius: 10px; border: 4px solid var(--amarelo); }
     </style>
 </head>
 <body>
 
     <div id="auth-section" class="container">
-        <header><h1>BoraLá Táxi</h1></header>
+        <header style="justify-content: center;"><h1>BoraLá Táxi</h1></header>
         <div class="form-box">
             <h2 id="form-title">Login</h2>
             <input type="email" id="email" placeholder="E-mail">
             <input type="password" id="password" placeholder="Senha">
             <input type="text" id="nomeCadastro" placeholder="Seu Nome Completo" class="hidden">
+            
+            <div id="lgpd-container" class="lgpd-box hidden">
+                <input type="checkbox" id="aceiteLGPD">
+                <label for="aceiteLGPD">Concordo com os Termos de Uso. Meus dados (nome e localização) serão usados apenas para solicitar a corrida via WhatsApp com o motorista.</label>
+            </div>
             
             <button class="btn-main" onclick="handleAuth()">Entrar</button>
             <p style="text-align:center; margin-top: 20px;">
@@ -52,32 +68,73 @@
     <div id="app-section" class="container hidden">
         <header>
             <h1>BoraLá Táxi</h1>
-            <button style="background:none; border:none; color:black; font-weight:bold; cursor:pointer;" onclick="logout()">Sair</button>
+            <div>
+                <button class="menu-btn" onclick="abrirPerfil()">👤 Perfil</button>
+            </div>
         </header>
         
         <div class="info-box">
-            <p><strong>Ponto de Partida:</strong> <span id="displayOrigem">Buscando endereço...</span></p>
-            <p><strong>Valor da Corrida:</strong> <span id="displayValor">R$ 30,00</span></p>
+            <p style="margin: 0 0 5px 0;"><strong>Valor:</strong> <span id="displayValor" style="color: #25D366; font-weight: bold; font-size: 1.1rem;">R$ 30,00</span></p>
         </div>
 
         <div class="form-box">
-            <p style="font-size: 0.8rem; color: #555;">Use a lupa no mapa para buscar um local ou clique no mapa:</p>
             <div id="mapa"></div>
 
-            <label>Seu Nome:</label>
-            <input type="text" id="nomeCliente" placeholder="Seu nome">
-            <label>Ponto de Partida:</label>
-            <input type="text" id="origem" placeholder="Sua Rua/Endereço" oninput="atualizarInfo()">
-            <label>Destino:</label>
-            <input type="text" id="destino" placeholder="Ex: Prefeitura, Rodoviária...">
+            <label style="font-size: 0.85rem; font-weight: bold;">📍 Partida:</label>
+            <input type="text" id="origem" placeholder="Buscando sua localização..." oninput="atualizarInfo()">
             
-            <label>Tipo de Transporte:</label>
-            <select id="tipoTransporte" onchange="atualizarInfo()">
-                <option value="Carro|30.00">Carro (R$ 30,00)</option>
-                <option value="Moto|20.00">Moto (R$ 20,00)</option>
-            </select>
+            <label style="font-size: 0.85rem; font-weight: bold;">🏁 Destino:</label>
+            <input type="text" id="destino" placeholder="Ex: Rodoviária, Prefeitura...">
+            
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <label style="font-size: 0.85rem; font-weight: bold;">🚗 Veículo:</label>
+                    <select id="tipoTransporte" onchange="atualizarInfo()">
+                        <option value="Carro|30.00">Carro</option>
+                        <option value="Moto|20.00">Moto</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 0.85rem; font-weight: bold;">💵 Pagamento:</label>
+                    <select id="formaPagamento">
+                        <option value="Dinheiro">Dinheiro</option>
+                        <option value="Pix">Pix (Falar com Motorista)</option>
+                    </select>
+                </div>
+            </div>
             
             <button class="btn-whats" onclick="enviarWhatsApp()">Pedir BoraLá Táxi</button>
+        </div>
+    </div>
+
+    <div id="perfil-section" class="modal hidden">
+        <div class="modal-header">
+            <h2>Minha Conta</h2>
+            <button class="menu-btn" onclick="fecharPerfil()">❌ Fechar</button>
+        </div>
+        
+        <label>Nome Completo:</label>
+        <input type="text" id="perfilNome" disabled style="background-color: #eee;">
+        
+        <label>Telefone (Opcional):</label>
+        <input type="tel" id="perfilTelefone" placeholder="(77) 90000-0000">
+        
+        <button class="btn-main" onclick="salvarPerfil()">Salvar Dados</button>
+        <button class="btn-outline" onclick="abrirCompartilhar()" style="margin-top: 15px;">📲 Compartilhar App</button>
+        <button class="btn-outline" onclick="logout()" style="margin-top: 15px; color: red; border-color: red;">Sair da Conta</button>
+    </div>
+
+    <div id="share-section" class="modal hidden">
+        <div class="modal-header">
+            <h2>Indique o BoraLá!</h2>
+            <button class="menu-btn" onclick="fecharCompartilhar()">❌ Fechar</button>
+        </div>
+        <p style="text-align: center; color: #555;">Mostre este QR Code para seus amigos ou tire um print para postar nas redes sociais!</p>
+        
+        <div class="qr-container">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://boralataxi.netlify.app/" alt="QR Code BoraLá Táxi">
+            <h3 style="margin-top: 15px;">BoraLá Táxi</h3>
+            <p style="font-weight: bold; color: var(--amarelo); text-shadow: 1px 1px 2px black;">Rápido. Seguro. Na palma da mão.</p>
         </div>
     </div>
 
@@ -101,30 +158,47 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        let map;
-        let marcadorOrigem;
-        let marcadorDestino;
+        // --- FUNÇÃO PARA DEIXAR O ENDEREÇO CURTO ---
+        function formatarEnderecoCurto(addressObj) {
+            if (!addressObj) return "Endereço selecionado";
+            let partes = [];
+            // Pega o Ponto de referência, Rua e Bairro/Cidade
+            if (addressObj.amenity) partes.push(addressObj.amenity);
+            if (addressObj.road) partes.push(addressObj.road);
+            if (addressObj.suburb || addressObj.neighbourhood) partes.push(addressObj.suburb || addressObj.neighbourhood);
+            if (addressObj.city || addressObj.town || addressObj.village) partes.push(addressObj.city || addressObj.town || addressObj.village);
+            
+            return partes.length > 0 ? partes.join(", ") : "Endereço selecionado";
+        }
+
+        let map, marcadorOrigem, marcadorDestino;
 
         function carregarMapa() {
             if (!map) {
                 map = L.map('mapa').setView([-10.7242, -43.6283], 15);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '© OpenStreetMap'
-                }).addTo(map);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
+                // LUPA "BoraLá Onde?"
                 L.Control.geocoder({
-                    defaultMarkGeocode: true,
-                    placeholder: "Buscar local..."
+                    defaultMarkGeocode: false,
+                    placeholder: "BoraLá Onde? (Ex: Prefeitura)"
                 })
                 .on('markgeocode', function(e) {
-                    var result = e.geocode;
-                    document.getElementById('destino').value = result.name;
+                    const latlng = e.geocode.center;
                     if(marcadorDestino) map.removeLayer(marcadorDestino);
-                    marcadorDestino = L.marker(result.center).addTo(map).bindPopup(result.name).openPopup();
+                    marcadorDestino = L.marker(latlng).addTo(map).bindPopup("Destino").openPopup();
+                    map.setView(latlng, 16);
+                    
+                    // Busca endereço curto
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            document.getElementById('destino').value = formatarEnderecoCurto(data.address);
+                        });
                 })
                 .addTo(map);
 
+                // Clique no Mapa
                 map.on('click', function(e) {
                     const lat = e.latlng.lat;
                     const lng = e.latlng.lng;
@@ -134,7 +208,7 @@
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                         .then(res => res.json())
                         .then(data => {
-                            document.getElementById('destino').value = data.display_name || "Local selecionado";
+                            document.getElementById('destino').value = formatarEnderecoCurto(data.address);
                         });
                 });
             }
@@ -146,49 +220,52 @@
                     (position) => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
-                        
                         map.setView([lat, lng], 16);
                         if (marcadorOrigem) map.removeLayer(marcadorOrigem);
                         marcadorOrigem = L.marker([lat, lng]).addTo(map).bindPopup('Sua Localização').openPopup();
                         
-                        // BUSCA O ENDEREÇO REAL DA ORIGEM (CORREÇÃO AQUI)
                         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                             .then(res => res.json())
                             .then(data => {
-                                const enderecoCompleto = data.display_name || "Endereço via GPS";
-                                document.getElementById('origem').value = enderecoCompleto;
-                                atualizarInfo(); // Atualiza o topo da tela
-                            })
-                            .catch(() => {
-                                document.getElementById('origem').value = "Localização Atual (GPS)";
+                                document.getElementById('origem').value = formatarEnderecoCurto(data.address);
                             });
                     },
-                    (error) => { 
-                        console.warn("GPS desativado"); 
-                        document.getElementById('displayOrigem').innerText = "Cachoeira (Padrão)";
-                    }
+                    (error) => { console.warn("GPS desativado"); }
                 );
             }
         }
 
+        // --- AUTH E LGPD ---
         let isLogin = true;
         window.toggleMode = () => {
             isLogin = !isLogin;
             document.getElementById('form-title').innerText = isLogin ? "Login" : "Cadastro";
-            document.getElementById('toggle-text').innerText = isLogin ? "Criar conta" : "Já tenho conta";
+            document.getElementById('toggle-text').innerText = isLogin ? "Já tenho conta" : "Criar conta";
             document.getElementById('nomeCadastro').classList.toggle('hidden', isLogin);
+            document.getElementById('lgpd-container').classList.toggle('hidden', isLogin);
         };
 
         window.handleAuth = async () => {
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
             const nome = document.getElementById('nomeCadastro').value;
+            const aceite = document.getElementById('aceiteLGPD').checked;
+
             try {
-                if(isLogin) await signInWithEmailAndPassword(auth, email, pass);
-                else {
+                if(isLogin) {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                } else {
+                    if(!aceite) {
+                        alert("Você precisa concordar com os Termos de Uso (LGPD) para criar a conta.");
+                        return;
+                    }
+                    if(nome === "") {
+                        alert("Por favor, preencha seu nome.");
+                        return;
+                    }
                     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
                     await updateProfile(userCredential.user, { displayName: nome });
-                    alert("Conta criada!");
+                    alert("Conta criada com sucesso!");
                 }
             } catch (e) { alert("Erro: " + e.message); }
         };
@@ -199,7 +276,7 @@
             if (user) {
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('app-section').classList.remove('hidden');
-                document.getElementById('nomeCliente').value = user.displayName || "";
+                document.getElementById('perfilNome').value = user.displayName || "Usuário";
                 carregarMapa();
             } else {
                 document.getElementById('auth-section').classList.remove('hidden');
@@ -207,30 +284,37 @@
             }
         });
 
+        // --- FUNÇÕES DE UI E WHATSAPP ---
+        window.abrirPerfil = () => document.getElementById('perfil-section').classList.remove('hidden');
+        window.fecharPerfil = () => document.getElementById('perfil-section').classList.add('hidden');
+        window.salvarPerfil = () => { alert("Dados salvos com sucesso no seu aparelho!"); fecharPerfil(); };
+        
+        window.abrirCompartilhar = () => document.getElementById('share-section').classList.remove('hidden');
+        window.fecharCompartilhar = () => document.getElementById('share-section').classList.add('hidden');
+
         window.atualizarInfo = () => {
-            var origem = document.getElementById('origem').value;
-            // Mostra um resumo ou o endereço completo no topo
-            document.getElementById('displayOrigem').innerText = origem.split(',')[0] || "Cachoeira";
             var dados = document.getElementById('tipoTransporte').value.split('|');
-            var valor = dados[1];
-            document.getElementById('displayValor').innerText = "R$ " + valor.replace('.', ',');
+            document.getElementById('displayValor').innerText = "R$ " + dados[1].replace('.', ',');
         };
 
         window.enviarWhatsApp = () => {
-            var nome = document.getElementById('nomeCliente').value;
+            var nome = document.getElementById('perfilNome').value; // Pega direto do perfil logado
             var origem = document.getElementById('origem').value;
             var destino = document.getElementById('destino').value;
+            var pagamento = document.getElementById('formaPagamento').value;
             var dados = document.getElementById('tipoTransporte').value.split('|');
             var tipo = dados[0];
             var valor = dados[1];
-            var telefone = "557798623007";
             
-            if (nome === "" || origem === "" || destino === "") {
-                alert("Por favor, preencha nome, origem e destino.");
+            if (origem === "" || destino === "") {
+                alert("Por favor, aguarde o GPS achar sua origem ou preencha o destino.");
                 return;
             }
-            var mensagem = "Olá! Meu nome é " + nome + ". Gostaria de um BoraLá Táxi.\n\n📍 Origem: " + origem + "\n🏁 Destino: " + destino + "\n🚗 Veículo: " + tipo + "\n💰 Valor: R$ " + valor.replace('.', ',');
-            window.open("https://wa.me/" + telefone + "?text=" + encodeURIComponent(mensagem), '_blank');
+            
+            // Mensagem concisa e direta, estilo Uber/99
+            var mensagem = `*Nova Corrida - BoraLá Táxi* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${tipo}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${valor.replace('.', ',')}`;
+            
+            window.open("https://wa.me/557798623007?text=" + encodeURIComponent(mensagem), '_blank');
         };
     </script>
 </body>
