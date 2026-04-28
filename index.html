@@ -14,13 +14,16 @@
         .hidden { display: none !important; }
         .container { min-height: 100vh; display: flex; flex-direction: column; }
         
-        /* Cabeçalho com Menu */
         header { background-color: var(--amarelo); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
         h1 { margin: 0; font-size: 1.5rem; text-transform: uppercase; font-weight: 900; }
         .menu-btn { background: none; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: var(--preto); }
         
         .form-box { padding: 20px; max-width: 400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         input, select { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+        
+        /* Campo de destino estilizado como leitura */
+        input[readonly] { background-color: #f9f9f9; cursor: pointer; border-style: dashed; }
+
         button { width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 1rem; }
         
         .btn-main { background-color: var(--preto); color: var(--amarelo); }
@@ -31,11 +34,9 @@
         
         #mapa { height: 250px; width: 100%; border-radius: 8px; margin-bottom: 10px; border: 2px solid #ccc; z-index: 1; }
         
-        /* Estilos LGPD e Termos */
         .lgpd-box { font-size: 0.8rem; color: #555; display: flex; align-items: flex-start; gap: 8px; margin: 10px 0; text-align: left; }
         .lgpd-box input { width: auto; margin: 2px 0 0 0; }
         
-        /* Modais (Perfil / Compartilhar) */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--amarelo); padding-bottom: 10px; margin-bottom: 20px; }
         
@@ -55,7 +56,7 @@
             
             <div id="lgpd-container" class="lgpd-box hidden">
                 <input type="checkbox" id="aceiteLGPD">
-                <label for="aceiteLGPD">Concordo com os Termos de Uso. Meus dados (nome e localização) serão usados apenas para solicitar a corrida via WhatsApp com o motorista.</label>
+                <label for="aceiteLGPD">Concordo com os Termos de Uso. Meus dados (nome e localização) serão usados apenas para solicitar a corrida via WhatsApp.</label>
             </div>
             
             <button class="btn-main" onclick="handleAuth()">Entrar</button>
@@ -84,7 +85,7 @@
             <input type="text" id="origem" placeholder="Buscando sua localização..." oninput="atualizarInfo()">
             
             <label style="font-size: 0.85rem; font-weight: bold;">🏁 Destino:</label>
-            <input type="text" id="destino" placeholder="Ex: Rodoviária, Prefeitura...">
+            <input type="text" id="destino" placeholder="Toque no mapa ou use a lupa 🔍" readonly>
             
             <div style="display: flex; gap: 10px;">
                 <div style="flex: 1;">
@@ -129,8 +130,6 @@
             <h2>Indique o BoraLá!</h2>
             <button class="menu-btn" onclick="fecharCompartilhar()">❌ Fechar</button>
         </div>
-        <p style="text-align: center; color: #555;">Mostre este QR Code para seus amigos ou tire um print para postar nas redes sociais!</p>
-        
         <div class="qr-container">
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://boralataxi.netlify.app/" alt="QR Code BoraLá Táxi">
             <h3 style="margin-top: 15px;">BoraLá Táxi</h3>
@@ -158,29 +157,36 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        // --- FUNÇÃO PARA DEIXAR O ENDEREÇO CURTO ---
         function formatarEnderecoCurto(addressObj) {
-            if (!addressObj) return "Endereço selecionado";
+            if (!addressObj) return "";
             let partes = [];
             if (addressObj.amenity) partes.push(addressObj.amenity);
             if (addressObj.road) partes.push(addressObj.road);
             if (addressObj.suburb || addressObj.neighbourhood) partes.push(addressObj.suburb || addressObj.neighbourhood);
-            if (addressObj.city || addressObj.town || addressObj.village) partes.push(addressObj.city || addressObj.town || addressObj.village);
-            
-            return partes.length > 0 ? partes.join(", ") : "Endereço selecionado";
+            // Removemos a cidade da string do input para não ficar repetitivo em Buritirama
+            return partes.length > 0 ? partes.join(", ") : "Local selecionado";
         }
 
         let map, marcadorOrigem, marcadorDestino;
 
         function carregarMapa() {
             if (!map) {
+                // Coordenadas centrais de Buritirama
                 map = L.map('mapa').setView([-10.7242, -43.6283], 15);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-                // LUPA "BoraLá Onde?"
+                // CONFIGURAÇÃO DA LUPA RESTRITA A BURITIRAMA
+                const geocoder = L.Control.Geocoder.nominatim({
+                    geocodingQueryParams: {
+                        viewbox: '-43.70,-10.80,-43.50,-10.60', // Limita a busca à área de Buritirama
+                        bounded: 1
+                    }
+                });
+
                 L.Control.geocoder({
+                    geocoder: geocoder,
                     defaultMarkGeocode: false,
-                    placeholder: "BoraLá Onde? (Ex: Prefeitura)"
+                    placeholder: "BoraLá Onde? (Ex: Centro)"
                 })
                 .on('markgeocode', function(e) {
                     const latlng = e.geocode.center;
@@ -188,15 +194,11 @@
                     marcadorDestino = L.marker(latlng).addTo(map).bindPopup("Destino").openPopup();
                     map.setView(latlng, 16);
                     
-                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`)
-                        .then(res => res.json())
-                        .then(data => {
-                            document.getElementById('destino').value = formatarEnderecoCurto(data.address);
-                        });
+                    document.getElementById('destino').value = e.geocode.name.split(',')[0] + ", Buritirama";
                 })
                 .addTo(map);
 
-                // Clique no Mapa
+                // Clique no Mapa para Destino
                 map.on('click', function(e) {
                     const lat = e.latlng.lat;
                     const lng = e.latlng.lng;
@@ -206,7 +208,7 @@
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                         .then(res => res.json())
                         .then(data => {
-                            document.getElementById('destino').value = formatarEnderecoCurto(data.address);
+                            document.getElementById('destino').value = formatarEnderecoCurto(data.address) + ", Buritirama";
                         });
                 });
             }
@@ -227,13 +229,12 @@
                             .then(data => {
                                 document.getElementById('origem').value = formatarEnderecoCurto(data.address);
                             });
-                    },
-                    (error) => { console.warn("GPS desativado"); }
+                    }
                 );
             }
         }
 
-        // --- AUTH E LGPD ---
+        // --- AUTH ---
         let isLogin = true;
         window.toggleMode = () => {
             isLogin = !isLogin;
@@ -253,17 +254,9 @@
                 if(isLogin) {
                     await signInWithEmailAndPassword(auth, email, pass);
                 } else {
-                    if(!aceite) {
-                        alert("Você precisa concordar com os Termos de Uso (LGPD) para criar a conta.");
-                        return;
-                    }
-                    if(nome === "") {
-                        alert("Por favor, preencha seu nome.");
-                        return;
-                    }
+                    if(!aceite) { alert("Aceite os termos LGPD."); return; }
                     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
                     await updateProfile(userCredential.user, { displayName: nome });
-                    alert("Conta criada com sucesso!");
                 }
             } catch (e) { alert("Erro: " + e.message); }
         };
@@ -274,16 +267,7 @@
             if (user) {
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('app-section').classList.remove('hidden');
-                
-                // Puxa o nome do Firebase
                 document.getElementById('perfilNome').value = user.displayName || "";
-                
-                // Puxa o telefone salvo no aparelho (se houver)
-                const telefoneSalvo = localStorage.getItem('userTelefone');
-                if (telefoneSalvo) {
-                    document.getElementById('perfilTelefone').value = telefoneSalvo;
-                }
-                
                 carregarMapa();
             } else {
                 document.getElementById('auth-section').classList.remove('hidden');
@@ -291,28 +275,17 @@
             }
         });
 
-        // --- FUNÇÕES DE UI E WHATSAPP ---
+        // --- UI ---
         window.abrirPerfil = () => document.getElementById('perfil-section').classList.remove('hidden');
         window.fecharPerfil = () => document.getElementById('perfil-section').classList.add('hidden');
         
-        // NOVA LÓGICA DE SALVAR PERFIL (ATUALIZA NO FIREBASE)
         window.salvarPerfil = async () => {
-            const novoNome = document.getElementById('perfilNome').value;
-            const novoTelefone = document.getElementById('perfilTelefone').value;
             const user = auth.currentUser;
-            
             if (user) {
-                try {
-                    // Atualiza o nome oficial no Firebase
-                    await updateProfile(user, { displayName: novoNome });
-                    // Salva o telefone no armazenamento do navegador
-                    localStorage.setItem('userTelefone', novoTelefone);
-                    
-                    alert("Dados salvos com sucesso!");
-                    fecharPerfil();
-                } catch (error) {
-                    alert("Erro ao atualizar o perfil: " + error.message);
-                }
+                await updateProfile(user, { displayName: document.getElementById('perfilNome').value });
+                localStorage.setItem('userTelefone', document.getElementById('perfilTelefone').value);
+                alert("Dados salvos!");
+                fecharPerfil();
             }
         };
         
@@ -330,15 +303,13 @@
             var destino = document.getElementById('destino').value;
             var pagamento = document.getElementById('formaPagamento').value;
             var dados = document.getElementById('tipoTransporte').value.split('|');
-            var tipo = dados[0];
-            var valor = dados[1];
             
-            if (origem === "" || destino === "") {
-                alert("Por favor, aguarde o GPS achar sua origem ou preencha o destino.");
+            if (destino === "" || destino.includes("Toque")) {
+                alert("Por favor, selecione o destino no mapa ou na lupa.");
                 return;
             }
             
-            var mensagem = `*Nova Corrida - BoraLá Táxi* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${tipo}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${valor.replace('.', ',')}`;
+            var mensagem = `*Nova Corrida - BoraLá Táxi* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${dados[0]}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${dados[1].replace('.', ',')}`;
             
             window.open("https://wa.me/557798623007?text=" + encodeURIComponent(mensagem), '_blank');
         };
