@@ -21,7 +21,6 @@
         .form-box { padding: 20px; max-width: 400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         input, select { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
         
-        /* Campo de destino estilizado como leitura */
         input[readonly] { background-color: #f9f9f9; cursor: pointer; border-style: dashed; }
 
         button { width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 1rem; }
@@ -29,6 +28,7 @@
         .btn-main { background-color: var(--preto); color: var(--amarelo); }
         .btn-whats { background-color: #25D366; color: white; margin-top: 10px; font-size: 1.1rem; }
         .btn-outline { background-color: transparent; border: 2px solid var(--preto); color: var(--preto); }
+        .btn-guest { background-color: var(--cinza); border: 2px solid #ccc; color: #333; margin-top: 20px; }
         
         .info-box { background: var(--cinza); padding: 15px; text-align: center; border-bottom: 2px solid var(--amarelo); font-size: 0.9rem; }
         
@@ -56,13 +56,17 @@
             
             <div id="lgpd-container" class="lgpd-box hidden">
                 <input type="checkbox" id="aceiteLGPD">
-                <label for="aceiteLGPD">Concordo com os Termos de Uso. Meus dados (nome e localização) serão usados apenas para solicitar a corrida via WhatsApp.</label>
+                <label for="aceiteLGPD">Concordo com os Termos de Uso. Meus dados serão usados apenas para solicitar a corrida.</label>
             </div>
             
             <button class="btn-main" onclick="handleAuth()">Entrar</button>
-            <p style="text-align:center; margin-top: 20px;">
+            <p style="text-align:center; margin-top: 15px;">
                 <a href="#" onclick="toggleMode()" id="toggle-text">Criar conta</a>
             </p>
+
+            <hr style="border: 1px solid #ddd; margin: 20px 0;">
+            
+            <button class="btn-guest" onclick="entrarComoConvidado()">Entrar como Convidado</button>
         </div>
     </div>
 
@@ -157,13 +161,15 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
+        let isGuest = false;
+        let isLogin = true;
+
         function formatarEnderecoCurto(addressObj) {
             if (!addressObj) return "";
             let partes = [];
             if (addressObj.amenity) partes.push(addressObj.amenity);
             if (addressObj.road) partes.push(addressObj.road);
             if (addressObj.suburb || addressObj.neighbourhood) partes.push(addressObj.suburb || addressObj.neighbourhood);
-            // Removemos a cidade da string do input para não ficar repetitivo em Buritirama
             return partes.length > 0 ? partes.join(", ") : "Local selecionado";
         }
 
@@ -171,71 +177,46 @@
 
         function carregarMapa() {
             if (!map) {
-                // Coordenadas centrais de Buritirama
                 map = L.map('mapa').setView([-10.7242, -43.6283], 15);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-                // CONFIGURAÇÃO DA LUPA RESTRITA A BURITIRAMA
                 const geocoder = L.Control.Geocoder.nominatim({
-                    geocodingQueryParams: {
-                        viewbox: '-43.70,-10.80,-43.50,-10.60', // Limita a busca à área de Buritirama
-                        bounded: 1
-                    }
+                    geocodingQueryParams: { viewbox: '-43.70,-10.80,-43.50,-10.60', bounded: 1 }
                 });
 
-                L.Control.geocoder({
-                    geocoder: geocoder,
-                    defaultMarkGeocode: false,
-                    placeholder: "BoraLá Onde? (Ex: Centro)"
-                })
+                L.Control.geocoder({ geocoder: geocoder, defaultMarkGeocode: false, placeholder: "BoraLá Onde?" })
                 .on('markgeocode', function(e) {
                     const latlng = e.geocode.center;
                     if(marcadorDestino) map.removeLayer(marcadorDestino);
                     marcadorDestino = L.marker(latlng).addTo(map).bindPopup("Destino").openPopup();
                     map.setView(latlng, 16);
-                    
                     document.getElementById('destino').value = e.geocode.name.split(',')[0] + ", Buritirama";
-                })
-                .addTo(map);
+                }).addTo(map);
 
-                // Clique no Mapa para Destino
                 map.on('click', function(e) {
                     const lat = e.latlng.lat;
                     const lng = e.latlng.lng;
                     if(marcadorDestino) map.removeLayer(marcadorDestino);
                     marcadorDestino = L.marker([lat, lng]).addTo(map).bindPopup("Destino selecionado").openPopup();
-
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                         .then(res => res.json())
-                        .then(data => {
-                            document.getElementById('destino').value = formatarEnderecoCurto(data.address) + ", Buritirama";
-                        });
+                        .then(data => { document.getElementById('destino').value = formatarEnderecoCurto(data.address) + ", Buritirama"; });
                 });
             }
-
             setTimeout(() => { map.invalidateSize(); }, 300);
-
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const lat = position.coords.latitude;
-                        const lng = position.coords.longitude;
-                        map.setView([lat, lng], 16);
-                        if (marcadorOrigem) map.removeLayer(marcadorOrigem);
-                        marcadorOrigem = L.marker([lat, lng]).addTo(map).bindPopup('Sua Localização').openPopup();
-                        
-                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-                            .then(res => res.json())
-                            .then(data => {
-                                document.getElementById('origem').value = formatarEnderecoCurto(data.address);
-                            });
-                    }
-                );
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const lat = position.coords.latitude; const lng = position.coords.longitude;
+                    map.setView([lat, lng], 16);
+                    if (marcadorOrigem) map.removeLayer(marcadorOrigem);
+                    marcadorOrigem = L.marker([lat, lng]).addTo(map).bindPopup('Sua Localização').openPopup();
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                        .then(res => res.json())
+                        .then(data => { document.getElementById('origem').value = formatarEnderecoCurto(data.address); });
+                });
             }
         }
 
-        // --- AUTH ---
-        let isLogin = true;
         window.toggleMode = () => {
             isLogin = !isLogin;
             document.getElementById('form-title').innerText = isLogin ? "Login" : "Cadastro";
@@ -249,11 +230,9 @@
             const pass = document.getElementById('password').value;
             const nome = document.getElementById('nomeCadastro').value;
             const aceite = document.getElementById('aceiteLGPD').checked;
-
             try {
-                if(isLogin) {
-                    await signInWithEmailAndPassword(auth, email, pass);
-                } else {
+                if(isLogin) { await signInWithEmailAndPassword(auth, email, pass); } 
+                else {
                     if(!aceite) { alert("Aceite os termos LGPD."); return; }
                     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
                     await updateProfile(userCredential.user, { displayName: nome });
@@ -261,31 +240,70 @@
             } catch (e) { alert("Erro: " + e.message); }
         };
 
-        window.logout = () => signOut(auth);
+        // --- FUNÇÃO DE CONVIDADO MELHORADA ---
+        window.entrarComoConvidado = () => {
+            let nomeExistente = localStorage.getItem('guestNome');
+            
+            // Se não tiver nome salvo, pergunta agora
+            if (!nomeExistente) {
+                let nomePrompt = prompt("Para continuar, como gostaria de ser chamado?");
+                if (!nomePrompt || nomePrompt.trim() === "") {
+                    alert("Precisamos do seu nome para o motorista saber quem buscar!");
+                    return; // Interrompe se não digitar nada
+                }
+                localStorage.setItem('guestNome', nomePrompt);
+                nomeExistente = nomePrompt;
+            }
+
+            isGuest = true;
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
+            document.getElementById('perfilNome').value = nomeExistente;
+            document.getElementById('perfilTelefone').value = localStorage.getItem('userTelefone') || "";
+            carregarMapa();
+        };
+
+        window.logout = () => {
+            isGuest = false;
+            signOut(auth).then(() => {
+                document.getElementById('auth-section').classList.remove('hidden');
+                document.getElementById('app-section').classList.add('hidden');
+            });
+        };
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
+                isGuest = false;
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('app-section').classList.remove('hidden');
                 document.getElementById('perfilNome').value = user.displayName || "";
+                document.getElementById('perfilTelefone').value = localStorage.getItem('userTelefone') || "";
                 carregarMapa();
-            } else {
+            } else if (!isGuest) {
                 document.getElementById('auth-section').classList.remove('hidden');
                 document.getElementById('app-section').classList.add('hidden');
             }
         });
 
-        // --- UI ---
         window.abrirPerfil = () => document.getElementById('perfil-section').classList.remove('hidden');
         window.fecharPerfil = () => document.getElementById('perfil-section').classList.add('hidden');
         
         window.salvarPerfil = async () => {
-            const user = auth.currentUser;
-            if (user) {
-                await updateProfile(user, { displayName: document.getElementById('perfilNome').value });
-                localStorage.setItem('userTelefone', document.getElementById('perfilTelefone').value);
+            const novoNome = document.getElementById('perfilNome').value;
+            const novoTelefone = document.getElementById('perfilTelefone').value;
+            if (isGuest) {
+                localStorage.setItem('guestNome', novoNome);
+                localStorage.setItem('userTelefone', novoTelefone);
                 alert("Dados salvos!");
                 fecharPerfil();
+            } else {
+                const user = auth.currentUser;
+                if (user) {
+                    await updateProfile(user, { displayName: novoNome });
+                    localStorage.setItem('userTelefone', novoTelefone);
+                    alert("Perfil atualizado!");
+                    fecharPerfil();
+                }
             }
         };
         
@@ -298,19 +316,13 @@
         };
 
         window.enviarWhatsApp = () => {
-            var nome = document.getElementById('perfilNome').value;
+            var nome = document.getElementById('perfilNome').value || "Passageiro";
             var origem = document.getElementById('origem').value;
             var destino = document.getElementById('destino').value;
             var pagamento = document.getElementById('formaPagamento').value;
             var dados = document.getElementById('tipoTransporte').value.split('|');
-            
-            if (destino === "" || destino.includes("Toque")) {
-                alert("Por favor, selecione o destino no mapa ou na lupa.");
-                return;
-            }
-            
+            if (destino === "" || destino.includes("Toque")) { alert("Selecione o destino no mapa."); return; }
             var mensagem = `*Nova Corrida - BoraLá Táxi* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${dados[0]}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${dados[1].replace('.', ',')}`;
-            
             window.open("https://wa.me/557798623007?text=" + encodeURIComponent(mensagem), '_blank');
         };
     </script>
