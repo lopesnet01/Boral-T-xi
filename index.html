@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BoraLá Táxi</title>
+    <title>BORA LÁ TÁXI</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -47,7 +47,7 @@
 <body>
 
     <div id="auth-section" class="container">
-        <header style="justify-content: center;"><h1>BoraLá Táxi</h1></header>
+        <header style="justify-content: center;"><h1>BORA LÁ TÁXI</h1></header>
         <div class="form-box">
             <h2 id="form-title">Login</h2>
             <input type="email" id="email" placeholder="E-mail">
@@ -72,7 +72,7 @@
 
     <div id="app-section" class="container hidden">
         <header>
-            <h1>BoraLá Táxi</h1>
+            <h1>BORA LÁ TÁXI</h1>
             <div>
                 <button class="menu-btn" onclick="abrirPerfil()">👤 Perfil</button>
             </div>
@@ -108,7 +108,7 @@
                 </div>
             </div>
             
-            <button class="btn-whats" onclick="enviarWhatsApp()">Pedir BoraLá Táxi</button>
+            <button class="btn-whats" onclick="enviarWhatsApp()">Pedir BORA LÁ TÁXI</button>
         </div>
     </div>
 
@@ -131,12 +131,12 @@
 
     <div id="share-section" class="modal hidden">
         <div class="modal-header">
-            <h2>Indique o BoraLá!</h2>
+            <h2>Indique o BORA LÁ!</h2>
             <button class="menu-btn" onclick="fecharCompartilhar()">❌ Fechar</button>
         </div>
         <div class="qr-container">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://boralataxi.netlify.app/" alt="QR Code BoraLá Táxi">
-            <h3 style="margin-top: 15px;">BoraLá Táxi</h3>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://boralataxi.netlify.app/" alt="QR Code BORA LÁ TÁXI">
+            <h3 style="margin-top: 15px;">BORA LÁ TÁXI</h3>
             <p style="font-weight: bold; color: var(--amarelo); text-shadow: 1px 1px 2px black;">Rápido. Seguro. Na palma da mão.</p>
         </div>
     </div>
@@ -184,7 +184,7 @@
                     geocodingQueryParams: { viewbox: '-43.70,-10.80,-43.50,-10.60', bounded: 1 }
                 });
 
-                L.Control.geocoder({ geocoder: geocoder, defaultMarkGeocode: false, placeholder: "BoraLá Onde?" })
+                L.Control.geocoder({ geocoder: geocoder, defaultMarkGeocode: false, placeholder: "BORA LÁ Onde?" })
                 .on('markgeocode', function(e) {
                     const latlng = e.geocode.center;
                     if(marcadorDestino) map.removeLayer(marcadorDestino);
@@ -322,7 +322,7 @@
             var pagamento = document.getElementById('formaPagamento').value;
             var dados = document.getElementById('tipoTransporte').value.split('|');
             if (destino === "" || destino.includes("Toque")) { alert("Selecione o destino no mapa."); return; }
-            var mensagem = `*Nova Corrida - BoraLá Táxi* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${dados[0]}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${dados[1].replace('.', ',')}`;
+            var mensagem = `*Nova Corrida - BORA LÁ TÁXI* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${dados[0]}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${dados[1].replace('.', ',')}`;
             window.open("https://wa.me/557798623007?text=" + encodeURIComponent(mensagem), '_blank');
         };
     </script>
