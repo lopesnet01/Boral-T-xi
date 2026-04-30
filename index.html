@@ -10,34 +10,83 @@
 
     <style>
         :root { --amarelo: #FFD700; --preto: #000000; --branco: #FFFFFF; --cinza: #f4f4f4; }
-        html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--branco); color: var(--preto); }
+        html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--branco); color: var(--preto); overflow: hidden; }
         .hidden { display: none !important; }
-        .container { min-height: 100vh; display: flex; flex-direction: column; }
         
-        header { background-color: var(--amarelo); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        /* Ajuste do container de login */
+        .container { min-height: 100vh; display: flex; flex-direction: column; }
+        #auth-section { overflow-y: auto; }
+        
+        /* Cabeçalho Flutuante (Sobre o Mapa) */
+        header { position: absolute; top: 0; left: 0; width: 100%; z-index: 1000; background: rgba(255, 215, 0, 0.95); backdrop-filter: blur(5px); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { margin: 0; font-size: 1.5rem; text-transform: uppercase; font-weight: 900; }
         .menu-btn { background: none; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: var(--preto); }
         
         .form-box { padding: 20px; max-width: 400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         input, select { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
-        
         input[readonly] { background-color: #f9f9f9; cursor: pointer; border-style: dashed; }
-
         button { width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 1rem; }
         
         .btn-main { background-color: var(--preto); color: var(--amarelo); }
-        .btn-whats { background-color: #25D366; color: white; margin-top: 10px; font-size: 1.1rem; }
+        .btn-whats { background-color: #FFD700; color: #000; margin-top: 5px; font-size: 1.2rem; border-radius: 12px; }
         .btn-outline { background-color: transparent; border: 2px solid var(--preto); color: var(--preto); }
         .btn-guest { background-color: var(--cinza); border: 2px solid #ccc; color: #333; margin-top: 20px; }
         
-        .info-box { background: var(--cinza); padding: 15px; text-align: center; border-bottom: 2px solid var(--amarelo); font-size: 0.9rem; }
+        /* Mapa em Tela Cheia */
+        #mapa { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        .leaflet-control-container .leaflet-top { top: 70px; /* Desce os controles para não esconder atrás do header */ }
+        .leaflet-control-container .leaflet-bottom { bottom: 120px; /* Sobe a logo do leaflet */ }
         
-        #mapa { height: 250px; width: 100%; border-radius: 8px; margin-bottom: 10px; border: 2px solid #ccc; z-index: 1; }
-        
+        /* Gaveta Retrátil (Bottom Sheet) */
+        .bottom-sheet {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--branco);
+            border-radius: 25px 25px 0 0;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh; /* Limita a altura máxima */
+        }
+
+        /* Classe que retrai a gaveta */
+        .bottom-sheet.retraido {
+            transform: translateY(calc(100% - 90px)); /* Deixa apenas 90px visíveis (puxador e botão) */
+        }
+
+        /* Área de Puxar */
+        .drag-handle-container {
+            width: 100%;
+            padding: 15px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .drag-handle {
+            width: 50px;
+            height: 6px;
+            background: #d1d1d1;
+            border-radius: 10px;
+        }
+
+        .sheet-content {
+            padding: 0 20px 20px 20px;
+            overflow-y: auto;
+        }
+
+        .info-box { background: var(--cinza); padding: 15px; text-align: center; border-radius: 12px; margin-bottom: 10px; font-size: 0.9rem; border: 1px solid #ddd; }
+
         .lgpd-box { font-size: 0.8rem; color: #555; display: flex; align-items: flex-start; gap: 8px; margin: 10px 0; text-align: left; }
         .lgpd-box input { width: auto; margin: 2px 0 0 0; }
         
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--amarelo); padding-bottom: 10px; margin-bottom: 20px; }
         
         .qr-container { text-align: center; margin-top: 20px; }
@@ -47,7 +96,7 @@
 <body>
 
     <div id="auth-section" class="container">
-        <header style="justify-content: center;"><h1>BORA LÁ TÁXI</h1></header>
+        <header style="position: static; justify-content: center;"><h1>BORA LÁ TÁXI</h1></header>
         <div class="form-box">
             <h2 id="form-title">Login</h2>
             <input type="email" id="email" placeholder="E-mail">
@@ -70,7 +119,7 @@
         </div>
     </div>
 
-    <div id="app-section" class="container hidden">
+    <div id="app-section" class="container hidden" style="position: relative; width: 100vw; height: 100vh;">
         <header>
             <h1>BORA LÁ TÁXI</h1>
             <div>
@@ -78,39 +127,46 @@
             </div>
         </header>
         
-        <div class="info-box">
-            <p style="margin: 0 0 5px 0;"><strong>Valor:</strong> <span id="displayValor" style="color: #25D366; font-weight: bold; font-size: 1.1rem;">R$ 30,00</span></p>
-        </div>
+        <div id="mapa"></div>
 
-        <div class="form-box">
-            <div id="mapa"></div>
-
-            <label style="font-size: 0.85rem; font-weight: bold;">📍 Partida:</label>
-            <input type="text" id="origem" placeholder="Buscando sua localização..." oninput="atualizarInfo()">
-            
-            <label style="font-size: 0.85rem; font-weight: bold;">🏁 Destino:</label>
-            <input type="text" id="destino" placeholder="Toque no mapa ou use a lupa 🔍" readonly>
-            
-            <div style="display: flex; gap: 10px;">
-                <div style="flex: 1;">
-                    <label style="font-size: 0.85rem; font-weight: bold;">🚗 Veículo:</label>
-                    <select id="tipoTransporte" onchange="atualizarInfo()">
-                        <option value="Carro|30.00">Carro</option>
-                        <option value="Moto|20.00">Moto</option>
-                    </select>
-                </div>
-                <div style="flex: 1;">
-                    <label style="font-size: 0.85rem; font-weight: bold;">💵 Pagamento:</label>
-                    <select id="formaPagamento">
-                        <option value="Dinheiro">Dinheiro</option>
-                        <option value="Pix">Pix (Falar com Motorista)</option>
-                    </select>
-                </div>
+        <div id="bottomSheet" class="bottom-sheet">
+            <div class="drag-handle-container" onclick="toggleSheet()">
+                <div class="drag-handle"></div>
+                <span id="texto-gaveta" style="margin-left: 10px; font-size: 0.9rem; color: #666; font-weight: bold; display: none;">Toque para expandir</span>
             </div>
             
-            <button class="btn-whats" onclick="enviarWhatsApp()">Pedir BORA LÁ TÁXI</button>
+            <div class="sheet-content">
+                <div class="info-box">
+                    <p style="margin: 0;"><strong>Valor Estimado:</strong> <span id="displayValor" style="color: #25D366; font-weight: bold; font-size: 1.2rem;">R$ 30,00</span></p>
+                </div>
+
+                <label style="font-size: 0.85rem; font-weight: bold;">📍 Partida:</label>
+                <input type="text" id="origem" placeholder="Buscando sua localização..." oninput="atualizarInfo()">
+                
+                <label style="font-size: 0.85rem; font-weight: bold;">🏁 Destino:</label>
+                <input type="text" id="destino" placeholder="Toque no mapa ou use a lupa 🔍" readonly>
+                
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; font-weight: bold;">🚗 Veículo:</label>
+                        <select id="tipoTransporte" onchange="atualizarInfo()">
+                            <option value="Carro|30.00">Carro</option>
+                            <option value="Moto|20.00">Moto</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.85rem; font-weight: bold;">💵 Pagamento:</label>
+                        <select id="formaPagamento">
+                            <option value="Dinheiro">Dinheiro</option>
+                            <option value="Pix">Pix</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button class="btn-whats" onclick="enviarWhatsApp()">Solicitar Agora</button>
+            </div>
         </div>
-    </div>
+        </div>
 
     <div id="perfil-section" class="modal hidden">
         <div class="modal-header">
@@ -177,8 +233,11 @@
 
         function carregarMapa() {
             if (!map) {
-                map = L.map('mapa').setView([-10.7242, -43.6283], 15);
+                map = L.map('mapa', { zoomControl: false }).setView([-10.7242, -43.6283], 15);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+                // Readiciona o controle de zoom em outra posição
+                L.control.zoom({ position: 'topright' }).addTo(map);
 
                 const geocoder = L.Control.Geocoder.nominatim({
                     geocodingQueryParams: { viewbox: '-43.70,-10.80,-43.50,-10.60', bounded: 1 }
@@ -191,6 +250,7 @@
                     marcadorDestino = L.marker(latlng).addTo(map).bindPopup("Destino").openPopup();
                     map.setView(latlng, 16);
                     document.getElementById('destino').value = e.geocode.name.split(',')[0] + ", Buritirama";
+                    abrirGaveta(); // Abre a gaveta automaticamente após selecionar destino
                 }).addTo(map);
 
                 map.on('click', function(e) {
@@ -198,12 +258,18 @@
                     const lng = e.latlng.lng;
                     if(marcadorDestino) map.removeLayer(marcadorDestino);
                     marcadorDestino = L.marker([lat, lng]).addTo(map).bindPopup("Destino selecionado").openPopup();
+                    
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                         .then(res => res.json())
-                        .then(data => { document.getElementById('destino').value = formatarEnderecoCurto(data.address) + ", Buritirama"; });
+                        .then(data => { 
+                            document.getElementById('destino').value = formatarEnderecoCurto(data.address) + ", Buritirama"; 
+                            abrirGaveta(); // Abre a gaveta automaticamente
+                        });
                 });
             }
+            
             setTimeout(() => { map.invalidateSize(); }, 300);
+            
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const lat = position.coords.latitude; const lng = position.coords.longitude;
@@ -217,6 +283,26 @@
             }
         }
 
+        // --- LÓGICA DA GAVETA RETRÁTIL ---
+        window.toggleSheet = () => {
+            const sheet = document.getElementById('bottomSheet');
+            const texto = document.getElementById('texto-gaveta');
+            sheet.classList.toggle('retraido');
+            
+            if(sheet.classList.contains('retraido')) {
+                texto.style.display = "inline"; // Mostra dica quando fechado
+            } else {
+                texto.style.display = "none";
+            }
+        };
+
+        window.abrirGaveta = () => {
+            const sheet = document.getElementById('bottomSheet');
+            sheet.classList.remove('retraido');
+            document.getElementById('texto-gaveta').style.display = "none";
+        };
+
+        // --- RESTANTE DAS FUNÇÕES ORIGINAIS ---
         window.toggleMode = () => {
             isLogin = !isLogin;
             document.getElementById('form-title').innerText = isLogin ? "Login" : "Cadastro";
@@ -240,27 +326,27 @@
             } catch (e) { alert("Erro: " + e.message); }
         };
 
-        // --- FUNÇÃO DE CONVIDADO MELHORADA ---
         window.entrarComoConvidado = () => {
             let nomeExistente = localStorage.getItem('guestNome');
-            
-            // Se não tiver nome salvo, pergunta agora
             if (!nomeExistente) {
                 let nomePrompt = prompt("Para continuar, como gostaria de ser chamado?");
                 if (!nomePrompt || nomePrompt.trim() === "") {
                     alert("Precisamos do seu nome para o motorista saber quem buscar!");
-                    return; // Interrompe se não digitar nada
+                    return;
                 }
                 localStorage.setItem('guestNome', nomePrompt);
                 nomeExistente = nomePrompt;
             }
-
             isGuest = true;
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('app-section').classList.remove('hidden');
             document.getElementById('perfilNome').value = nomeExistente;
             document.getElementById('perfilTelefone').value = localStorage.getItem('userTelefone') || "";
             carregarMapa();
+            
+            // Inicia a gaveta minimizada para a pessoa ver o mapa primeiro
+            document.getElementById('bottomSheet').classList.add('retraido');
+            document.getElementById('texto-gaveta').style.display = "inline";
         };
 
         window.logout = () => {
@@ -279,6 +365,10 @@
                 document.getElementById('perfilNome').value = user.displayName || "";
                 document.getElementById('perfilTelefone').value = localStorage.getItem('userTelefone') || "";
                 carregarMapa();
+                
+                // Inicia a gaveta minimizada para a pessoa ver o mapa
+                document.getElementById('bottomSheet').classList.add('retraido');
+                document.getElementById('texto-gaveta').style.display = "inline";
             } else if (!isGuest) {
                 document.getElementById('auth-section').classList.remove('hidden');
                 document.getElementById('app-section').classList.add('hidden');
@@ -327,4 +417,4 @@
         };
     </script>
 </body>
-                    </html>
+</html>
