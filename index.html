@@ -79,14 +79,14 @@
         </header>
         
         <div class="info-box">
-            <p style="margin: 0 0 5px 0;"><strong>Valor:</strong> <span id="displayValor" style="color: #25D366; font-weight: bold; font-size: 1.1rem;">R$ 30,00</span></p>
+            <p style="margin: 0 0 5px 0;"><strong>Valor Estimado:</strong> <span id="displayValor" style="color: #25D366; font-weight: bold; font-size: 1.1rem;">Aguardando locais...</span></p>
         </div>
 
         <div class="form-box">
             <div id="mapa"></div>
 
             <label style="font-size: 0.85rem; font-weight: bold;">📍 Partida:</label>
-            <input type="text" id="origem" placeholder="Buscando sua localização..." oninput="atualizarInfo()">
+            <input type="text" id="origem" placeholder="Buscando sua localização...">
             
             <label style="font-size: 0.85rem; font-weight: bold;">🏁 Destino:</label>
             <input type="text" id="destino" placeholder="Toque no mapa ou use a lupa 🔍" readonly>
@@ -94,9 +94,9 @@
             <div style="display: flex; gap: 10px;">
                 <div style="flex: 1;">
                     <label style="font-size: 0.85rem; font-weight: bold;">🚗 Veículo:</label>
-                    <select id="tipoTransporte" onchange="atualizarInfo()">
-                        <option value="Carro|30.00">Carro</option>
-                        <option value="Moto|20.00">Moto</option>
+                    <select id="tipoTransporte" onchange="calcularPreco()">
+                        <option value="Carro|10.00">Carro (R$ 10/km)</option>
+                        <option value="Moto|6.70">Moto (R$ 6,70/km)</option>
                     </select>
                 </div>
                 <div style="flex: 1;">
@@ -163,6 +163,9 @@
 
         let isGuest = false;
         let isLogin = true;
+        let valorCalculadoStr = "0,00";
+        let distanciaCalculadaKm = "0.0";
+        let map, marcadorOrigem, marcadorDestino;
 
         function formatarEnderecoCurto(addressObj) {
             if (!addressObj) return "";
@@ -173,7 +176,57 @@
             return partes.length > 0 ? partes.join(", ") : "Local selecionado";
         }
 
-        let map, marcadorOrigem, marcadorDestino;
+        // --- FUNÇÃO DE CÁLCULO DE PREÇO COM TAXAS MÍNIMAS INTEGRADAS ---
+        window.calcularPreco = async () => {
+            if (!marcadorOrigem || !marcadorDestino) {
+                document.getElementById('displayValor').innerText = "Aguardando locais...";
+                return;
+            }
+
+            document.getElementById('displayValor').innerText = "Calculando rota...";
+
+            const origem = marcadorOrigem.getLatLng();
+            const destino = marcadorDestino.getLatLng();
+            const dadosTransporte = document.getElementById('tipoTransporte').value.split('|');
+            const tipoVeiculo = dadosTransporte[0];
+            const taxaPorKm = parseFloat(dadosTransporte[1]);
+
+            // Valores mínimos configurados
+            const valorMinimo = (tipoVeiculo === "Carro") ? 10.00 : 8.00;
+
+            try {
+                const resposta = await fetch(`https://router.project-osrm.org/route/v1/driving/${origem.lng},${origem.lat};${destino.lng},${destino.lat}?overview=false`);
+                const dadosRota = await resposta.json();
+
+                if (dadosRota.routes && dadosRota.routes.length > 0) {
+                    const distanciaMetros = dadosRota.routes[0].distance;
+                    const distanciaKm = distanciaMetros / 1000;
+                    
+                    let valorTotal = distanciaKm * taxaPorKm;
+                    
+                    // Verificação de Taxa Mínima
+                    if (valorTotal < valorMinimo) {
+                        valorTotal = valorMinimo;
+                    }
+                    
+                    distanciaCalculadaKm = distanciaKm.toFixed(1);
+                    valorCalculadoStr = valorTotal.toFixed(2).replace('.', ',');
+                    
+                    document.getElementById('displayValor').innerText = `R$ ${valorCalculadoStr} (${distanciaCalculadaKm} km)`;
+                } else {
+                    document.getElementById('displayValor').innerText = "Rota não encontrada";
+                }
+            } catch (error) {
+                console.error("Erro na API de rotas", error);
+                const distLinhaReta = origem.distanceTo(destino) / 1000;
+                let valorFallback = distLinhaReta * taxaPorKm;
+                if (valorFallback < valorMinimo) valorFallback = valorMinimo;
+                
+                distanciaCalculadaKm = distLinhaReta.toFixed(1);
+                valorCalculadoStr = valorFallback.toFixed(2).replace('.', ',');
+                document.getElementById('displayValor').innerText = `R$ ${valorCalculadoStr} (~${distanciaCalculadaKm} km)`;
+            }
+        };
 
         function carregarMapa() {
             if (!map) {
@@ -191,6 +244,7 @@
                     marcadorDestino = L.marker(latlng).addTo(map).bindPopup("Destino").openPopup();
                     map.setView(latlng, 16);
                     document.getElementById('destino').value = e.geocode.name.split(',')[0] + ", Buritirama";
+                    calcularPreco();
                 }).addTo(map);
 
                 map.on('click', function(e) {
@@ -200,7 +254,10 @@
                     marcadorDestino = L.marker([lat, lng]).addTo(map).bindPopup("Destino selecionado").openPopup();
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                         .then(res => res.json())
-                        .then(data => { document.getElementById('destino').value = formatarEnderecoCurto(data.address) + ", Buritirama"; });
+                        .then(data => { 
+                            document.getElementById('destino').value = formatarEnderecoCurto(data.address) + ", Buritirama"; 
+                            calcularPreco();
+                        });
                 });
             }
             setTimeout(() => { map.invalidateSize(); }, 300);
@@ -212,7 +269,10 @@
                     marcadorOrigem = L.marker([lat, lng]).addTo(map).bindPopup('Sua Localização').openPopup();
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                         .then(res => res.json())
-                        .then(data => { document.getElementById('origem').value = formatarEnderecoCurto(data.address); });
+                        .then(data => { 
+                            document.getElementById('origem').value = formatarEnderecoCurto(data.address);
+                            calcularPreco();
+                        });
                 });
             }
         }
@@ -240,26 +300,18 @@
             } catch (e) { alert("Erro: " + e.message); }
         };
 
-        // --- FUNÇÃO DE CONVIDADO MELHORADA ---
         window.entrarComoConvidado = () => {
             let nomeExistente = localStorage.getItem('guestNome');
-            
-            // Se não tiver nome salvo, pergunta agora
             if (!nomeExistente) {
-                let nomePrompt = prompt("Para continuar, como gostaria de ser chamado?");
-                if (!nomePrompt || nomePrompt.trim() === "") {
-                    alert("Precisamos do seu nome para o motorista saber quem buscar!");
-                    return; // Interrompe se não digitar nada
-                }
+                let nomePrompt = prompt("Como gostaria de ser chamado?");
+                if (!nomePrompt || nomePrompt.trim() === "") return;
                 localStorage.setItem('guestNome', nomePrompt);
                 nomeExistente = nomePrompt;
             }
-
             isGuest = true;
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('app-section').classList.remove('hidden');
             document.getElementById('perfilNome').value = nomeExistente;
-            document.getElementById('perfilTelefone').value = localStorage.getItem('userTelefone') || "";
             carregarMapa();
         };
 
@@ -277,7 +329,6 @@
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('app-section').classList.remove('hidden');
                 document.getElementById('perfilNome').value = user.displayName || "";
-                document.getElementById('perfilTelefone').value = localStorage.getItem('userTelefone') || "";
                 carregarMapa();
             } else if (!isGuest) {
                 document.getElementById('auth-section').classList.remove('hidden');
@@ -291,38 +342,35 @@
         window.salvarPerfil = async () => {
             const novoNome = document.getElementById('perfilNome').value;
             const novoTelefone = document.getElementById('perfilTelefone').value;
+            localStorage.setItem('userTelefone', novoTelefone);
             if (isGuest) {
                 localStorage.setItem('guestNome', novoNome);
-                localStorage.setItem('userTelefone', novoTelefone);
                 alert("Dados salvos!");
                 fecharPerfil();
             } else {
                 const user = auth.currentUser;
                 if (user) {
                     await updateProfile(user, { displayName: novoNome });
-                    localStorage.setItem('userTelefone', novoTelefone);
                     alert("Perfil atualizado!");
                     fecharPerfil();
                 }
             }
         };
-        
+
         window.abrirCompartilhar = () => document.getElementById('share-section').classList.remove('hidden');
         window.fecharCompartilhar = () => document.getElementById('share-section').classList.add('hidden');
-
-        window.atualizarInfo = () => {
-            var dados = document.getElementById('tipoTransporte').value.split('|');
-            document.getElementById('displayValor').innerText = "R$ " + dados[1].replace('.', ',');
-        };
 
         window.enviarWhatsApp = () => {
             var nome = document.getElementById('perfilNome').value || "Passageiro";
             var origem = document.getElementById('origem').value;
             var destino = document.getElementById('destino').value;
             var pagamento = document.getElementById('formaPagamento').value;
-            var dados = document.getElementById('tipoTransporte').value.split('|');
-            if (destino === "" || destino.includes("Toque")) { alert("Selecione o destino no mapa."); return; }
-            var mensagem = `*Nova Corrida - BORA LÁ TÁXI* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🚗 *Veículo:* ${dados[0]}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Estimado:* R$ ${dados[1].replace('.', ',')}`;
+            var dadosTransporte = document.getElementById('tipoTransporte').value.split('|');
+            
+            if (destino === "" || destino.includes("Toque")) { alert("Selecione o destino."); return; }
+            if (valorCalculadoStr === "0,00") { alert("Aguarde o cálculo."); return; }
+
+            var mensagem = `*Nova Corrida - BORA LÁ TÁXI* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${origem}\n🏁 *Destino:* ${destino}\n🛣️ *Distância:* ${distanciaCalculadaKm} km\n🚗 *Veículo:* ${dadosTransporte[0]}\n💵 *Pagamento:* ${pagamento}\n💰 *Valor Calculado:* R$ ${valorCalculadoStr}`;
             window.open("https://wa.me/557798623007?text=" + encodeURIComponent(mensagem), '_blank');
         };
     </script>
