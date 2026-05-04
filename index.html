@@ -60,7 +60,6 @@
 </head>
 <body>
 
-    <!-- SESSÃO DE AUTENTICAÇÃO -->
     <div id="auth-section" class="container">
         <header style="position: static; justify-content: center;"><h1>BORA LÁ TÁXI</h1></header>
         <div class="form-box">
@@ -83,7 +82,6 @@
         </div>
     </div>
 
-    <!-- SESSÃO DO APP (MAPA) -->
     <div id="app-section" class="container hidden" style="position: relative; width: 100vw; height: 100vh;">
         <header>
             <h1>BORA LÁ TÁXI</h1>
@@ -100,7 +98,11 @@
             
             <div class="sheet-content">
                 <div class="info-box">
-                    <p style="margin: 0;"><strong>Valor Estimado:</strong> <span id="displayValor" style="color: #25D366; font-weight: bold; font-size: 1.2rem;">R$ 30,00</span></p>
+                    <p style="margin: 0; display: flex; justify-content: center; align-items: baseline; gap: 8px;">
+                        <strong>Valor Estimado:</strong> 
+                        <span id="displayValor" style="color: #25D366; font-weight: bold; font-size: 1.2rem;">R$ 30,00</span>
+                        <span id="displayDistancia" style="color: #666; font-size: 0.9rem; font-weight: bold;"></span>
+                    </p>
                 </div>
 
                 <label style="font-size: 0.85rem; font-weight: bold;">📍 Partida:</label>
@@ -131,7 +133,6 @@
         </div>
     </div>
 
-    <!-- MODAIS -->
     <div id="perfil-section" class="modal hidden">
         <div class="modal-header"><h2>Minha Conta</h2><button class="menu-btn" onclick="fecharPerfil()">❌</button></div>
         <label>Nome Completo:</label>
@@ -175,6 +176,7 @@
 
         let map, marcadorOrigem, marcadorDestino, rotaLayer;
         let isGuest = false, isLogin = true;
+        window.distanciaAtual = ""; // Variável global para guardar a distância calculada
 
         // --- LÓGICA DO MAPA E ROTAS ---
 
@@ -185,15 +187,48 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            const geocoder = L.Control.Geocoder.nominatim({
-                geocodingQueryParams: { viewbox: '-43.70,-10.80,-43.50,-10.60', bounded: 1 }
-            });
+            // GEOCODER PERSONALIZADO PARA FORÇAR BUSCA NA CIDADE
+            const geocoderInteligente = {
+                geocode: function(query, cb, context) {
+                    let q = query.trim();
+                    // Se o usuário não digitou o nome da cidade, nós adicionamos automaticamente
+                    if(!q.toLowerCase().includes('buritirama')) {
+                        q += ', Buritirama, Bahia';
+                    }
+                    
+                    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const results = data.map(d => ({
+                            // Mostra a rua e o bairro de forma mais limpa
+                            name: d.display_name.split(',').slice(0, 3).join(', '),
+                            center: L.latLng(d.lat, d.lon),
+                            bbox: L.latLngBounds(L.latLng(d.boundingbox[0], d.boundingbox[2]), L.latLng(d.boundingbox[1], d.boundingbox[3]))
+                        }));
+                        cb.call(context, results);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        cb.call(context, []);
+                    });
+                },
+                suggest: function(query, cb, context) {
+                    this.geocode(query, cb, context);
+                }
+            };
 
-            L.Control.geocoder({ geocoder: geocoder, defaultMarkGeocode: false, placeholder: "Para onde vamos?" })
+            L.Control.geocoder({ 
+                geocoder: geocoderInteligente, 
+                defaultMarkGeocode: false, 
+                placeholder: "Para onde vamos? (Rua...)" 
+            })
             .on('markgeocode', function(e) {
-                definirDestino(e.geocode.center, e.geocode.name);
+                // Ao clicar em uma opção da lista, marca o destino
+                const nomeCurto = e.geocode.name.split(',')[0];
+                definirDestino(e.geocode.center, nomeCurto);
             }).addTo(map);
 
+            // Clique no mapa
             map.on('click', function(e) {
                 fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
                 .then(res => res.json())
@@ -215,7 +250,7 @@
                             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
                             iconSize: [25, 41], iconAnchor: [12, 41]
                         })
-                    }).addTo(map).bindPopup("Você").openPopup();
+                    }).addTo(map).bindPopup("Você está aqui").openPopup();
                     
                     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                     .then(res => res.json())
@@ -233,17 +268,36 @@
             try {
                 const res = await fetch(url);
                 const data = await res.json();
+                
                 if (rotaLayer) map.removeLayer(rotaLayer);
+                
+                // Desenha a Rota
                 const coords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
                 rotaLayer = L.polyline(coords, { color: '#007BFF', weight: 6, opacity: 0.8 }).addTo(map);
                 map.fitBounds(rotaLayer.getBounds(), { padding: [50, 50] });
-            } catch (e) { console.error("Erro rota:", e); }
+
+                // CÁLCULO DE DISTÂNCIA
+                const distMetros = data.features[0].properties.summary.distance;
+                const distKm = (distMetros / 1000).toFixed(1); // Formata para 1 casa decimal (ex: 2.5)
+                
+                // Exibe na tela
+                window.distanciaAtual = `(${distKm} km)`;
+                document.getElementById('displayDistancia').innerText = window.distanciaAtual;
+
+            } catch (e) { 
+                console.error("Erro rota:", e); 
+                document.getElementById('displayDistancia').innerText = "";
+                window.distanciaAtual = "";
+            }
         }
 
         function definirDestino(latlng, nome) {
             if (marcadorDestino) map.removeLayer(marcadorDestino);
             marcadorDestino = L.marker(latlng).addTo(map).bindPopup(nome).openPopup();
-            document.getElementById('destino').value = nome.split(',')[0] + ", Buritirama";
+            
+            // Limpa nomes muito longos no campo de texto
+            document.getElementById('destino').value = nome + ", Buritirama";
+            
             tracarRota();
             abrirGaveta();
         }
@@ -327,9 +381,14 @@
             const nome = document.getElementById('perfilNome').value || "Passageiro";
             const dest = document.getElementById('destino').value;
             const dados = document.getElementById('tipoTransporte').value.split('|');
+            
             if (!dest || dest.includes("Toque")) return alert("Selecione o destino!");
             
-            const msg = `*Nova Corrida - BORA LÁ TÁXI* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${document.getElementById('origem').value}\n🏁 *Destino:* ${dest}\n🚗 *Veículo:* ${dados[0]}\n💵 *Pagamento:* ${document.getElementById('formaPagamento').value}\n💰 *Valor:* R$ ${dados[1]}`;
+            // Monta a mensagem incluindo a distância se ela foi calculada
+            const infoDistancia = window.distanciaAtual ? `\n📏 *Distância:* ${window.distanciaAtual.replace('(', '').replace(')', '')}` : "";
+            
+            const msg = `*Nova Corrida - BORA LÁ TÁXI* 🚕\n\n👤 *Passageiro:* ${nome}\n📍 *Origem:* ${document.getElementById('origem').value}\n🏁 *Destino:* ${dest}${infoDistancia}\n🚗 *Veículo:* ${dados[0]}\n💵 *Pagamento:* ${document.getElementById('formaPagamento').value}\n💰 *Valor:* R$ ${dados[1]}`;
+            
             window.open(`https://wa.me/557798623007?text=${encodeURIComponent(msg)}`, '_blank');
         };
 
